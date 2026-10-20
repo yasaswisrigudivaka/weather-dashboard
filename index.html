@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weather Dashboard</title>
+<style>
+  body{font-family:Arial,sans-serif;background:#0f172a;color:#fff;margin:0;padding:20px;text-align:center}
+  h1{margin-bottom:16px}
+  .search{display:flex;gap:8px;max-width:400px;margin:0 auto 20px}
+  input{flex:1;padding:12px;border-radius:8px;border:none;font-size:16px}
+  button{padding:12px 16px;border:none;border-radius:8px;background:#3b82f6;color:#fff;font-size:16px}
+  #status{min-height:24px;margin-bottom:12px}
+  .error{color:#f87171}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;max-width:500px;margin:0 auto}
+  .card{background:#1e293b;padding:16px;border-radius:12px}
+  .card h3{margin:0 0 8px;font-size:14px;color:#94a3b8}
+  .card p{margin:0;font-size:24px;font-weight:bold}
+</style>
+</head>
+<body>
+  <h1>🌤️ Weather Dashboard</h1>
+  <div class="search">
+    <input id="city" type="text" placeholder="Enter city name">
+    <button id="btn">Search</button>
+  </div>
+  <div id="status"></div>
+  <h2 id="place"></h2>
+  <div class="cards" id="cards"></div>
+
+<script>
+const input = document.getElementById("city");
+const statusEl = document.getElementById("status");
+const placeEl = document.getElementById("place");
+const cardsEl = document.getElementById("cards");
+
+async function getWeather(city) {
+  statusEl.className = "";
+  statusEl.textContent = "Loading...";
+  cardsEl.innerHTML = "";
+  placeEl.textContent = "";
+  try {
+    // Step A: city name -> coordinates
+    const geoRes = await fetch(
+      `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1`
+    );
+    if (!geoRes.ok) throw new Error("Geocoding request failed");
+    const geo = await geoRes.json();
+    if (!geo.results) throw new Error("City not found");
+    const { latitude, longitude, name, country } = geo.results[0];
+
+    // Step B: coordinates -> current weather
+    const wRes = await fetch(
+      `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,wind_speed_10m`
+    );
+    if (!wRes.ok) throw new Error("Weather request failed");
+    const w = await wRes.json();
+
+    renderWeather(name, country, w.current, w.current_units);
+    statusEl.textContent = "";
+  } catch (err) {
+    statusEl.className = "error";
+    statusEl.textContent = err.message === "Failed to fetch"
+      ? "Network error. Check your internet."
+      : err.message;
+  }
+}
+
+function renderWeather(name, country, cur, units) {
+  placeEl.textContent = `${name}, ${country}`;
+  const items = [
+    ["Temperature", `${cur.temperature_2m}${units.temperature_2m}`],
+    ["Humidity", `${cur.relative_humidity_2m}${units.relative_humidity_2m}`],
+    ["Wind Speed", `${cur.wind_speed_10m} ${units.wind_speed_10m}`]
+  ];
+  cardsEl.innerHTML = items
+    .map(([label, val]) => `<div class="card"><h3>${label}</h3><p>${val}</p></div>`)
+    .join("");
+}
+
+document.getElementById("btn").addEventListener("click", () => {
+  const city = input.value.trim();
+  if (!city) { statusEl.className = "error"; statusEl.textContent = "Please enter a city name."; return; }
+  getWeather(city);
+});
+input.addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("btn").click(); });
+</script>
+</body>
+</html>
